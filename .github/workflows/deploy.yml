@@ -1,0 +1,110 @@
+name: Build and Deploy Rust Workers
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'rust-workers/**'
+      - '.github/workflows/deploy.yml'
+
+env:
+  PROJECT_ID: my-gcp-project-id
+  REGION: us-central1
+  GAR_LOCATION: us-central1-docker.pkg.dev/my-gcp-project-id/rag-workers
+  SERVICE_ACCOUNT: my-service-account@my-gcp-project-id.iam.gserviceaccount.com
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/123456789/locations/global/workloadIdentityPools/my-pool/providers/my-provider'
+          service_account: '${{ env.SERVICE_ACCOUNT }}'
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and Push worker-pdf
+        working-directory: ./rust-workers
+        run: |
+          docker build -f Dockerfile.pdf -t ${{ env.GAR_LOCATION }}/worker-pdf:${{ github.sha }} .
+          docker push ${{ env.GAR_LOCATION }}/worker-pdf:${{ github.sha }}
+
+      - name: Build and Push worker-html
+        working-directory: ./rust-workers
+        run: |
+          docker build -f Dockerfile.html -t ${{ env.GAR_LOCATION }}/worker-html:${{ github.sha }} .
+          docker push ${{ env.GAR_LOCATION }}/worker-html:${{ github.sha }}
+
+      - name: Build and Push worker-jar
+        working-directory: ./rust-workers
+        run: |
+          docker build -f Dockerfile.jar -t ${{ env.GAR_LOCATION }}/worker-jar:${{ github.sha }} .
+          docker push ${{ env.GAR_LOCATION }}/worker-jar:${{ github.sha }}
+
+      - name: Deploy worker-pdf to Cloud Run
+        run: |
+          gcloud run deploy worker-pdf \
+            --image ${{ env.GAR_LOCATION }}/worker-pdf:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --service-account ${{ env.SERVICE_ACCOUNT }} \
+            --no-allow-unauthenticated
+
+      - name: Deploy worker-html to Cloud Run
+        run: |
+          gcloud run deploy worker-html \
+            --image ${{ env.GAR_LOCATION }}/worker-html:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --service-account ${{ env.SERVICE_ACCOUNT }} \
+            --no-allow-unauthenticated
+
+      - name: Deploy worker-jar to Cloud Run
+        run: |
+          gcloud run deploy worker-jar \
+            --image ${{ env.GAR_LOCATION }}/worker-jar:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --service-account ${{ env.SERVICE_ACCOUNT }} \
+            --no-allow-unauthenticated
+
+      - name: Create Eventarc Triggers
+        run: |
+          gcloud eventarc triggers create trigger-worker-pdf \
+            --location=${{ env.REGION }} \
+            --destination-run-service=worker-pdf \
+            --destination-run-region=${{ env.REGION }} \
+            --event-filters="type=google.cloud.storage.object.v1.finalized" \
+            --event-filters="bucket=raw-docs-bucket" \
+            --event-filters-path-pattern="subject=**/*.pdf" \
+            --service-account=${{ env.SERVICE_ACCOUNT }} || true
+            
+          gcloud eventarc triggers create trigger-worker-html \
+            --location=${{ env.REGION }} \
+            --destination-run-service=worker-html \
+            --destination-run-region=${{ env.REGION }} \
+            --event-filters="type=google.cloud.storage.object.v1.finalized" \
+            --event-filters="bucket=raw-docs-bucket" \
+            --event-filters-path-pattern="subject=**/*.zip" \
+            --service-account=${{ env.SERVICE_ACCOUNT }} || true
+            
+          gcloud eventarc triggers create trigger-worker-jar \
+            --location=${{ env.REGION }} \
+            --destination-run-service=worker-jar \
+            --destination-run-region=${{ env.REGION }} \
+            --event-filters="type=google.cloud.storage.object.v1.finalized" \
+            --event-filters="bucket=raw-docs-bucket" \
+            --event-filters-path-pattern="subject=**/*.jar" \
+            --service-account=${{ env.SERVICE_ACCOUNT }} || true

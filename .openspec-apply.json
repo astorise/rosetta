@@ -1,0 +1,99 @@
+﻿{
+  "changeName": "feat-rag-rust-workers",
+  "changeDir": "C:\\Users\\astor\\Git\\rosetta\\openspec\\changes\\feat-rag-rust-workers",
+  "schemaName": "spec-driven",
+  "contextFiles": {
+    "proposal": "C:\\Users\\astor\\Git\\rosetta\\openspec\\changes\\feat-rag-rust-workers\\proposal.md",
+    "design": "C:\\Users\\astor\\Git\\rosetta\\openspec\\changes\\feat-rag-rust-workers\\design.md",
+    "tasks": "C:\\Users\\astor\\Git\\rosetta\\openspec\\changes\\feat-rag-rust-workers\\tasks.md"
+  },
+  "progress": {
+    "total": 16,
+    "complete": 0,
+    "remaining": 16
+  },
+  "tasks": [
+    {
+      "id": "1",
+      "description": "Initialize Cargo workspace with 3 binaries (`worker-pdf`, `worker-html`, `worker-jar`) and 1 shared library (`shared-gcp`).",
+      "done": false
+    },
+    {
+      "id": "2",
+      "description": "Implement `axum` server routing for POST `/` in the shared library.",
+      "done": false
+    },
+    {
+      "id": "3",
+      "description": "Implement CloudEvent JSON deserialization.",
+      "done": false
+    },
+    {
+      "id": "4",
+      "description": "Implement Firebase Storage upload/download helpers and Firestore metadata insertion.",
+      "done": false
+    },
+    {
+      "id": "5",
+      "description": "Implement the YAML Frontmatter merging logic using `serde_yaml` (combine deterministic tags from Rust with semantic tags parsed from the LLM response).",
+      "done": false
+    },
+    {
+      "id": "6",
+      "description": "**worker-pdf**: Implement PDF text extraction and chunking logic.",
+      "done": false
+    },
+    {
+      "id": "7",
+      "description": "**worker-html**: Implement `async_zip` stream reading, `scraper` HTML cleanup, and the `tokio::sync::Semaphore` concurrency logic.",
+      "done": false
+    },
+    {
+      "id": "8",
+      "description": "**worker-jar**: Implement JAR download to `/tmp` and subprocess call to `cfr.jar`. Add the semantic flattening LLM instruction.",
+      "done": false
+    },
+    {
+      "id": "9",
+      "description": "Create `Dockerfile.pdf` using a multi-stage build (Debian slim for final stage).",
+      "done": false
+    },
+    {
+      "id": "10",
+      "description": "Create `Dockerfile.html` using a multi-stage build (Debian slim for final stage).",
+      "done": false
+    },
+    {
+      "id": "11",
+      "description": "Create `Dockerfile.jar` using a multi-stage build (MUST install `default-jre-headless` in the final Debian stage to run `cfr.jar`).",
+      "done": false
+    },
+    {
+      "id": "12",
+      "description": "Create `.github/workflows/deploy.yml`.",
+      "done": false
+    },
+    {
+      "id": "13",
+      "description": "Add `google-github-actions/auth` step using Workload Identity Federation.",
+      "done": false
+    },
+    {
+      "id": "14",
+      "description": "Add Docker build and push steps to Google Artifact Registry for all 3 images.",
+      "done": false
+    },
+    {
+      "id": "15",
+      "description": "Add `gcloud run deploy` steps for the 3 services.",
+      "done": false
+    },
+    {
+      "id": "16",
+      "description": "Add `gcloud eventarc triggers create` steps with the correct path pattern filters (`*.pdf`, `*.zip`, `*.jar`).",
+      "done": false
+    }
+  ],
+  "state": "ready",
+  "instruction": "Read context files, work through pending tasks, mark complete as you go.\nPause if you hit blockers or need clarification."
+}

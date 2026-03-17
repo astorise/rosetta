@@ -1,0 +1,12 @@
+FROM rust:1.77-slim-bookworm AS builder
+WORKDIR /app
+COPY . .
+# Note: In a real project we'd use cargo-chef for caching dependencies
+RUN cargo build --release --bin worker-pdf
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/target/release/worker-pdf /worker-pdf
+ENV RUST_LOG=info
+EXPOSE 8080
+CMD ["/worker-pdf"]

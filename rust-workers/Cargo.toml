@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "worker-pdf",
+    "worker-html",
+    "worker-jar",
+    "shared-gcp"
+]
+resolver = "2"

@@ -1,0 +1,15 @@
+[package]
+name = "worker-pdf"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+shared-gcp = { path = "../shared-gcp" }
+tokio = { version = "1.37", features = ["full"] }
+axum = "0.7"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+pdf-extract = "0.7"
+reqwest = { version = "0.12", features = ["json"] }
