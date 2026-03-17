@@ -45,11 +45,13 @@ impl EventHandler for PdfWorker {
 
                 let frontmatter = merge_frontmatter(det_tags.clone(), semantic_yaml);
                 let markdown = format!("{}\n\n{}", frontmatter, text);
+                let md_name = format!("{}.md", data.name);
+                let metadata_doc_id = firestore_document_id(&md_name);
 
                 storage
                     .upload(
                         output_bucket.as_str(),
-                        &format!("{}.md", data.name),
+                        &md_name,
                         markdown.into_bytes(),
                         "text/markdown",
                     )
@@ -57,7 +59,7 @@ impl EventHandler for PdfWorker {
                     .map_err(|e| format!("Upload error: {}", e))?;
 
                 firestore
-                    .insert_metadata("processed_docs", &data.name, &det_tags)
+                    .insert_metadata("processed_docs", &metadata_doc_id, &det_tags)
                     .await
                     .map_err(|e| format!("Firestore error: {}", e))?;
             }
@@ -85,4 +87,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     tracing::info!("worker-pdf listening on 8080");
     axum::serve(listener, app).await?;
     Ok(())
+}
+
+fn firestore_document_id(object_name: &str) -> String {
+    object_name.replace("/", "_")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::firestore_document_id;
+
+    #[test]
+    fn sanitizes_firestore_document_ids() {
+        assert_eq!(
+            firestore_document_id("smoke-tests/demo.pdf.md"),
+            "smoke-tests_demo.pdf.md"
+        );
+    }
 }
