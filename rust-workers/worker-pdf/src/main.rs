@@ -14,7 +14,7 @@ struct PdfWorker {
 impl EventHandler for PdfWorker {
     fn handle(&self, event: CloudEvent) -> impl std::future::Future<Output = Result<(), String>> + Send {
         let storage = self.storage.clone();
-        let _firestore = self.firestore.clone();
+        let firestore = self.firestore.clone();
         async move {
             tracing::info!("Received event: {:?}", event.id);
             if let Some(data) = event.data {
@@ -36,11 +36,14 @@ impl EventHandler for PdfWorker {
                     document_type: "pdf".to_string(),
                 };
                 
-                let frontmatter = merge_frontmatter(det_tags, semantic_yaml);
+                let frontmatter = merge_frontmatter(det_tags.clone(), semantic_yaml);
                 let markdown = format!("{}\n\n{}", frontmatter, text);
                 
                 storage.upload("rag-markdown-bucket", &format!("{}.md", data.name), markdown.into_bytes(), "text/markdown").await
                     .map_err(|e| format!("Upload error: {}", e))?;
+                
+                firestore.insert_metadata("processed_docs", &data.name, &det_tags).await
+                    .map_err(|e| format!("Firestore error: {}", e))?;
             }
             Ok(())
         }

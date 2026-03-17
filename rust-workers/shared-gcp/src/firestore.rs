@@ -1,29 +1,25 @@
-use google_cloud_firestore::client::{Client, ClientConfig};
-use google_cloud_firestore::http::v1::Document;
-use std::collections::HashMap;
+use firestore::{FirestoreDb, FirestoreDbOptions};
+use serde::{Serialize, de::DeserializeOwned};
 
 pub struct FirestoreHelper {
-    client: Client,
-    project_id: String,
+    db: FirestoreDb,
 }
 
 impl FirestoreHelper {
     pub async fn new(project_id: &str) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        let config = ClientConfig::default().with_auth().await?;
-        let client = Client::new(config).await?;
-        Ok(Self {
-            client,
-            project_id: project_id.to_string(),
-        })
+        let db = FirestoreDb::with_options(FirestoreDbOptions::new(project_id.to_string())).await?;
+        Ok(Self { db })
     }
 
-    pub async fn insert_metadata(&self, collection: &str, document_id: &str, data: Document) -> Result<(), google_cloud_firestore::errors::FirestoreError> {
-        self.client.create_document(
-            &self.project_id,
-            &format!("(default)/documents/{}", collection),
-            document_id,
-            data
-        ).await?;
+    pub async fn insert_metadata<T>(&self, collection: &str, document_id: &str, data: &T) -> Result<(), Box<dyn std::error::Error + Send + Sync>> 
+    where T: Serialize + DeserializeOwned + Sync + Send + 'static {
+        self.db.fluent()
+            .insert()
+            .into(collection)
+            .document_id(document_id)
+            .object(data)
+            .execute::<()>()
+            .await?;
         Ok(())
     }
 }

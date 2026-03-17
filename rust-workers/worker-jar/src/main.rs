@@ -15,7 +15,7 @@ struct JarWorker {
 impl EventHandler for JarWorker {
     fn handle(&self, event: CloudEvent) -> impl std::future::Future<Output = Result<(), String>> + Send {
         let storage = self.storage.clone();
-        let _firestore = self.firestore.clone();
+        let firestore = self.firestore.clone();
         
         async move {
             if let Some(data) = event.data {
@@ -50,12 +50,15 @@ impl EventHandler for JarWorker {
                     document_type: "jar".to_string(),
                 };
                 
-                let frontmatter = merge_frontmatter(det_tags, semantic_yaml);
+                let frontmatter = merge_frontmatter(det_tags.clone(), semantic_yaml);
                 let markdown = format!("{}\n\n{}", frontmatter, decompiled_text);
                 
                 let md_name = format!("{}.md", data.name.replace("/", "_"));
                 storage.upload("rag-markdown-bucket", &md_name, markdown.into_bytes(), "text/markdown").await
                     .map_err(|e| format!("Upload error: {}", e))?;
+                    
+                firestore.insert_metadata("processed_docs", &md_name, &det_tags).await
+                    .map_err(|e| format!("Firestore error: {}", e))?;
             }
             Ok(())
         }

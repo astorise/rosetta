@@ -14,3 +14,4 @@ tracing-subscriber = "0.3"
 async_zip = { version = "0.0.17", features = ["tokio"] }
 scraper = "0.19"
 reqwest = { version = "0.12", features = ["json"] }
+tokio-util = { version = "0.7", features = ["compat"] }
