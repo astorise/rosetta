@@ -1,4 +1,4 @@
-FROM rust:1.77-slim-bookworm AS builder
+FROM rust:1.94-slim-bookworm AS builder
 WORKDIR /app
 COPY . .
 # Note: In a real project we'd use cargo-chef for caching dependencies
