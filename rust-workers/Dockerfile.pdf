@@ -1,5 +1,6 @@
 FROM rust:1.94-slim-bookworm AS builder
 WORKDIR /app
+RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 COPY . .
 # Note: In a real project we'd use cargo-chef for caching dependencies
 RUN cargo build --release --bin worker-pdf
