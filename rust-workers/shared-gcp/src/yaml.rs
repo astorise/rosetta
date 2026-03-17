@@ -22,13 +22,17 @@ pub struct MergedFrontmatter {
 }
 
 pub fn merge_frontmatter(deterministic: DeterministicTags, semantic_yaml: &str) -> String {
-    let semantic: SemanticTags = serde_yaml::from_str(semantic_yaml).unwrap_or_else(|_| SemanticTags {
-        technologies: vec!["unknown".to_string()],
-        semantic_tags: vec![],
-    });
+    let semantic: SemanticTags =
+        serde_yaml::from_str(semantic_yaml).unwrap_or_else(|_| SemanticTags {
+            technologies: vec!["unknown".to_string()],
+            semantic_tags: vec![],
+        });
 
-    let merged = MergedFrontmatter { deterministic, semantic };
+    let merged = MergedFrontmatter {
+        deterministic,
+        semantic,
+    };
     let yaml = serde_yaml::to_string(&merged).unwrap_or_default();
-    
+
     format!("---\n{}---\n", yaml.trim())
 }

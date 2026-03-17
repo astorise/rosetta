@@ -1,5 +1,5 @@
 use firestore::{FirestoreDb, FirestoreDbOptions};
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Serialize};
 
 pub struct FirestoreHelper {
     db: FirestoreDb,
@@ -11,9 +11,17 @@ impl FirestoreHelper {
         Ok(Self { db })
     }
 
-    pub async fn insert_metadata<T>(&self, collection: &str, document_id: &str, data: &T) -> Result<(), Box<dyn std::error::Error + Send + Sync>> 
-    where T: Serialize + DeserializeOwned + Sync + Send + 'static {
-        self.db.fluent()
+    pub async fn insert_metadata<T>(
+        &self,
+        collection: &str,
+        document_id: &str,
+        data: &T,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
+    where
+        T: Serialize + DeserializeOwned + Sync + Send + 'static,
+    {
+        self.db
+            .fluent()
             .insert()
             .into(collection)
             .document_id(document_id)
