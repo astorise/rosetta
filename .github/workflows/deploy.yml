@@ -29,11 +29,14 @@ jobs:
         id: auth
         uses: google-github-actions/auth@v2
         with:
+          project_id: '${{ env.PROJECT_ID }}'
           workload_identity_provider: '${{ secrets.WIF_PROVIDER }}'
           service_account: '${{ env.SERVICE_ACCOUNT }}'
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: '${{ env.PROJECT_ID }}'
 
       - name: Configure Docker
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
@@ -80,31 +83,30 @@ jobs:
             --service-account ${{ env.SERVICE_ACCOUNT }} \
             --no-allow-unauthenticated
 
-      - name: Create Eventarc Triggers
+      - name: Ensure Eventarc Triggers
+        shell: bash
         run: |
-          gcloud eventarc triggers create trigger-worker-pdf \
-            --location=${{ env.REGION }} \
-            --destination-run-service=worker-pdf \
-            --destination-run-region=${{ env.REGION }} \
-            --event-filters="type=google.cloud.storage.object.v1.finalized" \
-            --event-filters="bucket=raw-docs-bucket" \
-            --event-filters-path-pattern="subject=**/*.pdf" \
-            --service-account=${{ env.SERVICE_ACCOUNT }} || true
-            
-          gcloud eventarc triggers create trigger-worker-html \
-            --location=${{ env.REGION }} \
-            --destination-run-service=worker-html \
-            --destination-run-region=${{ env.REGION }} \
-            --event-filters="type=google.cloud.storage.object.v1.finalized" \
-            --event-filters="bucket=raw-docs-bucket" \
-            --event-filters-path-pattern="subject=**/*.zip" \
-            --service-account=${{ env.SERVICE_ACCOUNT }} || true
-            
-          gcloud eventarc triggers create trigger-worker-jar \
-            --location=${{ env.REGION }} \
-            --destination-run-service=worker-jar \
-            --destination-run-region=${{ env.REGION }} \
-            --event-filters="type=google.cloud.storage.object.v1.finalized" \
-            --event-filters="bucket=raw-docs-bucket" \
-            --event-filters-path-pattern="subject=**/*.jar" \
-            --service-account=${{ env.SERVICE_ACCOUNT }} || true
+          ensure_trigger() {
+            local trigger_name="$1"
+            local service_name="$2"
+
+            if gcloud eventarc triggers describe "$trigger_name" --location="${{ env.REGION }}" >/dev/null 2>&1; then
+              echo "Trigger $trigger_name already exists; leaving it unchanged."
+              return 0
+            fi
+
+            gcloud eventarc triggers create "$trigger_name" \
+              --location="${{ env.REGION }}" \
+              --destination-run-service="$service_name" \
+              --destination-run-region="${{ env.REGION }}" \
+              --event-filters="type=google.cloud.storage.object.v1.finalized" \
+              --event-filters="bucket=raw-docs-bucket" \
+              --event-data-content-type="application/json" \
+              --service-account="${{ env.SERVICE_ACCOUNT }}"
+          }
+
+          # Cloud Storage direct events only support exact-match filters.
+          # Each worker ignores unsupported extensions in application code.
+          ensure_trigger trigger-worker-pdf worker-pdf
+          ensure_trigger trigger-worker-html worker-html
+          ensure_trigger trigger-worker-jar worker-jar
