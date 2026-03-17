@@ -14,6 +14,7 @@ struct HtmlWorker {
     storage: Arc<StorageHelper>,
     firestore: Arc<FirestoreHelper>,
     api_semaphore: Arc<Semaphore>,
+    output_bucket: Arc<String>,
 }
 
 impl EventHandler for HtmlWorker {
@@ -21,6 +22,7 @@ impl EventHandler for HtmlWorker {
         let storage = self.storage.clone();
         let firestore = self.firestore.clone();
         let api_semaphore = self.api_semaphore.clone();
+        let output_bucket = self.output_bucket.clone();
         
         async move {
             if let Some(data) = event.data {
@@ -32,7 +34,7 @@ impl EventHandler for HtmlWorker {
                 let zip_bytes = storage.download(&data.bucket, &data.name).await
                     .map_err(|e| format!("Download error: {}", e))?;
                 
-                let mut cursor = Cursor::new(zip_bytes);
+                let cursor = Cursor::new(zip_bytes);
                 let mut reader = ZipFileReader::new(cursor.compat()).await
                     .map_err(|e| format!("ZIP error: {}", e))?;
                 
@@ -66,7 +68,7 @@ impl EventHandler for HtmlWorker {
                         let markdown = format!("{}\n\n{}", frontmatter, text);
                         
                         let md_name = format!("{}_{}.md", data.name.replace("/", "_"), filename.replace("/", "_"));
-                        storage.upload("rag-markdown-bucket", &md_name, markdown.into_bytes(), "text/markdown").await
+                        storage.upload(output_bucket.as_str(), &md_name, markdown.into_bytes(), "text/markdown").await
                             .map_err(|e| format!("Upload error: {}", e))?;
                             
                         firestore.insert_metadata("processed_docs", &md_name, &det_tags).await
@@ -82,11 +84,13 @@ impl EventHandler for HtmlWorker {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     tracing_subscriber::fmt::init();
+    let project_id = std::env::var("PROJECT_ID")?;
+    let output_bucket = Arc::new(std::env::var("MD_BUCKET")?);
     let storage = Arc::new(StorageHelper::new().await?);
-    let firestore = Arc::new(FirestoreHelper::new("my-project-id").await?);
+    let firestore = Arc::new(FirestoreHelper::new(&project_id).await?);
     let api_semaphore = Arc::new(Semaphore::new(10));
     
-    let worker = HtmlWorker { storage, firestore, api_semaphore };
+    let worker = HtmlWorker { storage, firestore, api_semaphore, output_bucket };
     let app = create_router(worker);
     
     let listener = TcpListener::bind("0.0.0.0:8080").await?;

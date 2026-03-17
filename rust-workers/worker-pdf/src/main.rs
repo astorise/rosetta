@@ -9,12 +9,14 @@ use tokio::net::TcpListener;
 struct PdfWorker {
     storage: Arc<StorageHelper>,
     firestore: Arc<FirestoreHelper>,
+    output_bucket: Arc<String>,
 }
 
 impl EventHandler for PdfWorker {
     fn handle(&self, event: CloudEvent) -> impl std::future::Future<Output = Result<(), String>> + Send {
         let storage = self.storage.clone();
         let firestore = self.firestore.clone();
+        let output_bucket = self.output_bucket.clone();
         async move {
             tracing::info!("Received event: {:?}", event.id);
             if let Some(data) = event.data {
@@ -39,7 +41,7 @@ impl EventHandler for PdfWorker {
                 let frontmatter = merge_frontmatter(det_tags.clone(), semantic_yaml);
                 let markdown = format!("{}\n\n{}", frontmatter, text);
                 
-                storage.upload("rag-markdown-bucket", &format!("{}.md", data.name), markdown.into_bytes(), "text/markdown").await
+                storage.upload(output_bucket.as_str(), &format!("{}.md", data.name), markdown.into_bytes(), "text/markdown").await
                     .map_err(|e| format!("Upload error: {}", e))?;
                 
                 firestore.insert_metadata("processed_docs", &data.name, &det_tags).await
@@ -53,10 +55,12 @@ impl EventHandler for PdfWorker {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     tracing_subscriber::fmt::init();
+    let project_id = std::env::var("PROJECT_ID")?;
+    let output_bucket = Arc::new(std::env::var("MD_BUCKET")?);
     let storage = Arc::new(StorageHelper::new().await?);
-    let firestore = Arc::new(FirestoreHelper::new("my-project-id").await?);
+    let firestore = Arc::new(FirestoreHelper::new(&project_id).await?);
     
-    let worker = PdfWorker { storage, firestore };
+    let worker = PdfWorker { storage, firestore, output_bucket };
     let app = create_router(worker);
     
     let listener = TcpListener::bind("0.0.0.0:8080").await?;

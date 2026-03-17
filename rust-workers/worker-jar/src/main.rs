@@ -10,12 +10,14 @@ use tokio::process::Command;
 struct JarWorker {
     storage: Arc<StorageHelper>,
     firestore: Arc<FirestoreHelper>,
+    output_bucket: Arc<String>,
 }
 
 impl EventHandler for JarWorker {
     fn handle(&self, event: CloudEvent) -> impl std::future::Future<Output = Result<(), String>> + Send {
         let storage = self.storage.clone();
         let firestore = self.firestore.clone();
+        let output_bucket = self.output_bucket.clone();
         
         async move {
             if let Some(data) = event.data {
@@ -54,7 +56,7 @@ impl EventHandler for JarWorker {
                 let markdown = format!("{}\n\n{}", frontmatter, decompiled_text);
                 
                 let md_name = format!("{}.md", data.name.replace("/", "_"));
-                storage.upload("rag-markdown-bucket", &md_name, markdown.into_bytes(), "text/markdown").await
+                storage.upload(output_bucket.as_str(), &md_name, markdown.into_bytes(), "text/markdown").await
                     .map_err(|e| format!("Upload error: {}", e))?;
                     
                 firestore.insert_metadata("processed_docs", &md_name, &det_tags).await
@@ -68,10 +70,12 @@ impl EventHandler for JarWorker {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     tracing_subscriber::fmt::init();
+    let project_id = std::env::var("PROJECT_ID")?;
+    let output_bucket = Arc::new(std::env::var("MD_BUCKET")?);
     let storage = Arc::new(StorageHelper::new().await?);
-    let firestore = Arc::new(FirestoreHelper::new("my-project-id").await?);
+    let firestore = Arc::new(FirestoreHelper::new(&project_id).await?);
     
-    let worker = JarWorker { storage, firestore };
+    let worker = JarWorker { storage, firestore, output_bucket };
     let app = create_router(worker);
     
     let listener = TcpListener::bind("0.0.0.0:8080").await?;

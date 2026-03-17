@@ -13,6 +13,8 @@ env:
   REGION: us-central1
   GAR_LOCATION: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/rag-workers
   SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+  SOURCE_BUCKET: ${{ secrets.GCP_PROJECT_ID }}-raw-docs
+  MD_BUCKET: ${{ secrets.GCP_PROJECT_ID }}-rag-markdown
 
 jobs:
   deploy:
@@ -65,6 +67,7 @@ jobs:
             --image ${{ env.GAR_LOCATION }}/worker-pdf:${{ github.sha }} \
             --region ${{ env.REGION }} \
             --service-account ${{ env.SERVICE_ACCOUNT }} \
+            --set-env-vars PROJECT_ID=${{ env.PROJECT_ID }},MD_BUCKET=${{ env.MD_BUCKET }} \
             --no-allow-unauthenticated
 
       - name: Deploy worker-html to Cloud Run
@@ -73,6 +76,7 @@ jobs:
             --image ${{ env.GAR_LOCATION }}/worker-html:${{ github.sha }} \
             --region ${{ env.REGION }} \
             --service-account ${{ env.SERVICE_ACCOUNT }} \
+            --set-env-vars PROJECT_ID=${{ env.PROJECT_ID }},MD_BUCKET=${{ env.MD_BUCKET }} \
             --no-allow-unauthenticated
 
       - name: Deploy worker-jar to Cloud Run
@@ -81,6 +85,7 @@ jobs:
             --image ${{ env.GAR_LOCATION }}/worker-jar:${{ github.sha }} \
             --region ${{ env.REGION }} \
             --service-account ${{ env.SERVICE_ACCOUNT }} \
+            --set-env-vars PROJECT_ID=${{ env.PROJECT_ID }},MD_BUCKET=${{ env.MD_BUCKET }} \
             --no-allow-unauthenticated
 
       - name: Ensure Eventarc Triggers
@@ -100,7 +105,7 @@ jobs:
               --destination-run-service="$service_name" \
               --destination-run-region="${{ env.REGION }}" \
               --event-filters="type=google.cloud.storage.object.v1.finalized" \
-              --event-filters="bucket=raw-docs-bucket" \
+              --event-filters="bucket=${{ env.SOURCE_BUCKET }}" \
               --event-data-content-type="application/json" \
               --service-account="${{ env.SERVICE_ACCOUNT }}"
           }
