@@ -4,5 +4,5 @@ members = [
     "worker-html",
     "worker-jar",
     "shared-gcp"
-, "test_gcs"]
+]
 resolver = "2"
