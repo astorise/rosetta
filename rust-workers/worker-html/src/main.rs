@@ -127,3 +127,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     axum::serve(listener, app).await?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use async_zip::tokio::read::seek::ZipFileReader;
+    use std::io::{Cursor, Write};
+    use tokio_util::compat::TokioAsyncReadCompatExt;
+    use zip::write::FileOptions;
+
+    #[tokio::test]
+    async fn opens_deflated_zip_archives() {
+        let mut zip_bytes = Cursor::new(Vec::new());
+
+        {
+            let mut writer = zip::ZipWriter::new(&mut zip_bytes);
+            let options =
+                FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+            writer.start_file("index.html", options).unwrap();
+            writer
+                .write_all(b"<html><body><h1>Rosetta Smoke</h1></body></html>")
+                .unwrap();
+            writer.finish().unwrap();
+        }
+
+        let reader = ZipFileReader::new(Cursor::new(zip_bytes.into_inner()).compat()).await;
+
+        assert!(reader.is_ok(), "deflated ZIP archives should be readable");
+    }
+}
