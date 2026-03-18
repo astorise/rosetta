@@ -1,112 +1,32 @@
 ﻿{
-  "changeName": "feat-frontend-teacher",
-  "changeDir": "C:\\Users\\astor\\Git\\rosetta\\openspec\\changes\\feat-frontend-teacher",
+  "changeName": "feat-firebase-security-rules",
+  "changeDir": "C:\\Users\\astor\\Git\\rosetta\\openspec\\changes\\feat-firebase-security-rules",
   "schemaName": "spec-driven",
   "contextFiles": {
-    "proposal": "C:\\Users\\astor\\Git\\rosetta\\openspec\\changes\\feat-frontend-teacher\\proposal.md",
-    "specs": "C:\\Users\\astor\\Git\\rosetta\\openspec\\changes\\feat-frontend-teacher\\specs\\**\\*.md",
-    "design": "C:\\Users\\astor\\Git\\rosetta\\openspec\\changes\\feat-frontend-teacher\\design.md",
-    "tasks": "C:\\Users\\astor\\Git\\rosetta\\openspec\\changes\\feat-frontend-teacher\\tasks.md"
+    "proposal": "C:\\Users\\astor\\Git\\rosetta\\openspec\\changes\\feat-firebase-security-rules\\proposal.md",
+    "specs": "C:\\Users\\astor\\Git\\rosetta\\openspec\\changes\\feat-firebase-security-rules\\specs\\**\\*.md",
+    "design": "C:\\Users\\astor\\Git\\rosetta\\openspec\\changes\\feat-firebase-security-rules\\design.md",
+    "tasks": "C:\\Users\\astor\\Git\\rosetta\\openspec\\changes\\feat-firebase-security-rules\\tasks.md"
   },
   "progress": {
-    "total": 19,
+    "total": 3,
     "complete": 0,
-    "remaining": 19
+    "remaining": 3
   },
   "tasks": [
     {
       "id": "1",
-      "description": "Initialize a Vite Vanilla JS project (`npm create vite@latest frontend -- --template vanilla`).",
+      "description": "**Task 1: Firestore Rules**",
       "done": false
     },
     {
       "id": "2",
-      "description": "Install dependencies: `tailwindcss`, `postcss`, `autoprefixer`, `gsap`, `firebase`.",
+      "description": "**Task 2: Storage Rules**",
       "done": false
     },
     {
       "id": "3",
-      "description": "Configure Tailwind (`tailwind.config.js` and `style.css`).",
-      "done": false
-    },
-    {
-      "id": "4",
-      "description": "Set up Firebase initialization in `src/lib/firebase.js` (export auth, db, storage).",
-      "done": false
-    },
-    {
-      "id": "5",
-      "description": "Create `firestore.rules` at the root of the project. Implement the exact read/write constraints defined in `design.md` (no client writes, users can read their own role, authenticated users can read `processed_docs`).",
-      "done": false
-    },
-    {
-      "id": "6",
-      "description": "Create `storage.rules` at the root of the project. Implement the cross-service check using `firestore.get()` to ensure only users with the `admin` role in Firestore can write to the storage bucket. Restrict payload size.",
-      "done": false
-    },
-    {
-      "id": "7",
-      "description": "Create `src/components/rw-app.js`. Implement Firebase `onAuthStateChanged` logic. **(Rule: Light DOM only)**.",
-      "done": false
-    },
-    {
-      "id": "8",
-      "description": "Create `src/components/rw-auth.js` for login UI with Tailwind. **(Rule: Light DOM only)**.",
-      "done": false
-    },
-    {
-      "id": "9",
-      "description": "Implement role fetching in `rw-app.js`: upon login, fetch `user_roles/{uid}` and store the role state.",
-      "done": false
-    },
-    {
-      "id": "10",
-      "description": "Create `src/components/rw-dashboard.js`. **(Rule: Light DOM only)**.",
-      "done": false
-    },
-    {
-      "id": "11",
-      "description": "Implement `onSnapshot` listener on `processed_docs` collection to display RAG-ready Markdown files.",
-      "done": false
-    },
-    {
-      "id": "12",
-      "description": "Add basic GSAP stagger animations on list load.",
-      "done": false
-    },
-    {
-      "id": "13",
-      "description": "Create `src/components/rw-uploader.js`. **(Rule: Light DOM only)**.",
-      "done": false
-    },
-    {
-      "id": "14",
-      "description": "Implement UI (Tailwind) and Drag & Drop event listeners bound in `connectedCallback`.",
-      "done": false
-    },
-    {
-      "id": "15",
-      "description": "Integrate GSAP animations for `dragover` and `dragleave`.",
-      "done": false
-    },
-    {
-      "id": "16",
-      "description": "Implement Firebase Storage upload (`uploadBytesResumable`).",
-      "done": false
-    },
-    {
-      "id": "17",
-      "description": "Animate progress bar width using GSAP based on upload snapshot.",
-      "done": false
-    },
-    {
-      "id": "18",
-      "description": "Register all custom elements in `main.js`.",
-      "done": false
-    },
-    {
-      "id": "19",
-      "description": "Ensure `<rw-app>` conditionally renders `<rw-uploader>` ONLY if the user has the `admin` role.",
+      "description": "**Task 3: Firebase Configuration**",
       "done": false
     }
   ],
