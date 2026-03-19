@@ -6,7 +6,8 @@
     "rules": "storage.rules"
   },
   "functions": {
-    "source": "functions"
+    "source": "functions",
+    "runtime": "nodejs22"
   },
   "hosting": {
     "public": "frontend/dist",

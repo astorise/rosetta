@@ -1,34 +1,46 @@
-const functions = require('firebase-functions');
+const { auth, https } = require('firebase-functions/v1');
+const { defineString } = require('firebase-functions/params');
+const logger = require('firebase-functions/logger');
 const { GoogleAuth } = require('google-auth-library');
-const fetch = require('node-fetch');
 
-const CLOUD_RUN_SERVICE_URL = process.env.CLOUD_RUN_SERVICE_URL;
+const cloudRunServiceUrl = defineString('CLOUD_RUN_SERVICE_URL');
 
-exports.triggerCloudRunOnUserCreate = functions.auth.user().onCreate(async (user) => {
-  const serviceAudience = CLOUD_RUN_SERVICE_URL;
+exports.triggerCloudRunOnUserCreate = auth.user().onCreate(async (user) => {
+  const serviceUrl = cloudRunServiceUrl.value();
 
-  functions.logger.info(`New user created: ${user.uid}`);
+  if (!serviceUrl) {
+    logger.error('CLOUD_RUN_SERVICE_URL is not configured.');
+    throw new https.HttpsError(
+      'failed-precondition',
+      'CLOUD_RUN_SERVICE_URL is not configured.'
+    );
+  }
+
+  logger.info(`New user created: ${user.uid}`);
 
   try {
-    const auth = new GoogleAuth();
-    const client = await auth.getIdTokenClient(serviceAudience);
+    const googleAuth = new GoogleAuth();
+    const client = await googleAuth.getIdTokenClient(serviceUrl);
 
     const body = {
-        email: user.email,
-        uid: user.uid,
+      email: user.email ?? null,
+      uid: user.uid,
     };
 
     const response = await client.request({
-        url: CLOUD_RUN_SERVICE_URL,
-        method: 'POST',
-        data: body,
+      url: serviceUrl,
+      method: 'POST',
+      data: body,
     });
 
-    functions.logger.info('Successfully triggered Cloud Run service.', response.data);
+    logger.info('Successfully triggered Cloud Run service.', response.data);
     return response.data;
-
   } catch (error) {
-    functions.logger.error('Error triggering Cloud Run service:', error);
-    throw new functions.https.HttpsError('internal', 'Failed to trigger Cloud Run service', error.message);
+    logger.error('Error triggering Cloud Run service.', error);
+    throw new https.HttpsError(
+      'internal',
+      'Failed to trigger Cloud Run service',
+      error instanceof Error ? error.message : String(error)
+    );
   }
 });
