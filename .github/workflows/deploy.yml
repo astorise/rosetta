@@ -8,6 +8,7 @@ on:
     paths:
       - 'frontend/**'
       - 'rust-workers/**'
+      - 'functions/**'
       - '.github/workflows/**'
       - '*.rules'
       - 'firebase.json'
@@ -60,6 +61,8 @@ jobs:
       contents: read
       id-token: write
     runs-on: ubuntu-latest
+    outputs:
+      service_url: ${{ steps.get_service_url.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -86,6 +89,7 @@ jobs:
         working-directory: ./rust-workers
 
       - name: Deploy worker-auth to Cloud Run
+        id: deploy_worker
         run: |-
           gcloud run deploy worker-auth \
             --image us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/rag-workers/worker-auth:latest \
@@ -99,9 +103,40 @@ jobs:
             --set-env-vars "EMAIL_API_KEY=${{ secrets.EMAIL_API_KEY }}" \
             --set-env-vars "EMAIL_API_URL=${{ secrets.EMAIL_API_URL }}" \
             --quiet
+      
+      - name: Get Cloud Run service URL
+        id: get_service_url
+        run: echo "url=$(gcloud run services describe worker-auth --platform managed --region us-central1 --format 'value(status.url)')" >> $GITHUB_OUTPUT
 
-      - name: Skip unsupported Firebase Auth Eventarc trigger
-        run: |-
-          echo "Skipping Eventarc trigger management for worker-auth."
-          echo "Firebase Auth user lifecycle events are not listed as supported Eventarc Standard direct events for Cloud Run services."
-          echo "If worker-auth must react to Firebase Auth user events, migrate this handler to a Cloud Run function/Firebase-supported trigger path instead of Eventarc Standard."
+  deploy-functions:
+    needs: deploy-rust-workers
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      
+      - name: Install Dependencies
+        run: npm ci
+        working-directory: ./functions
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Deploy to Firebase Functions
+        env:
+          GOOGLE_CLOUD_QUOTA_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+          CLOUD_RUN_SERVICE_URL: ${{ needs.deploy-rust-workers.outputs.service_url }}
+        run: npx firebase-tools deploy --only functions --project ${{ secrets.GCP_PROJECT_ID }} --force
+
