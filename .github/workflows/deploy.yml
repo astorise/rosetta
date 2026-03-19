@@ -79,14 +79,14 @@ jobs:
 
       - name: Build and Push worker-auth
         run: |-
-          docker build -t us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/rosetta/worker-auth:latest -f Dockerfile.auth .
-          docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/rosetta/worker-auth:latest
+          docker build -t us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/rag-workers/worker-auth:latest -f Dockerfile.auth .
+          docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/rag-workers/worker-auth:latest
         working-directory: ./rust-workers
 
       - name: Deploy worker-auth to Cloud Run
         run: |-
           gcloud run deploy worker-auth \
-            --image us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/rosetta/worker-auth:latest \
+            --image us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/rag-workers/worker-auth:latest \
             --region us-central1 \
             --platform managed \
             --no-allow-unauthenticated \
