@@ -1,11 +1,13 @@
 name: Deploy to Firebase
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
     paths:
       - 'frontend/**'
+      - '.github/workflows/**'
       - '*.rules'
       - 'firebase.json'
 
