@@ -3,6 +3,7 @@ members = [
     "worker-pdf",
     "worker-html",
     "worker-jar",
-    "shared-gcp"
+    "shared-gcp",
+    "worker-auth"
 ]
 resolver = "2"

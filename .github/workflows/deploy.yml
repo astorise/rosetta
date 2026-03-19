@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - 'frontend/**'
+      - 'rust-workers/**'
       - '.github/workflows/**'
       - '*.rules'
       - 'firebase.json'
@@ -52,3 +53,54 @@ jobs:
         env:
           GOOGLE_CLOUD_QUOTA_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
         run: npx firebase-tools deploy --project ${{ secrets.GCP_PROJECT_ID }}
+
+  deploy-rust-workers:
+    needs: deploy
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev
+
+      - name: Build and Push worker-auth
+        run: |-
+          docker build -t us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/rosetta/worker-auth:latest -f rust-workers/Dockerfile.auth .
+          docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/rosetta/worker-auth:latest
+        working-directory: ./
+
+      - name: Deploy worker-auth to Cloud Run
+        run: |-
+          gcloud run deploy worker-auth \
+            --image us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/rosetta/worker-auth:latest \
+            --region us-central1 \
+            --platform managed \
+            --no-allow-unauthenticated \
+            --set-env-vars "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" \
+            --set-env-vars "ADMIN_EMAIL=${{ secrets.ADMIN_EMAIL }}" \
+            --set-env-vars "EMAIL_API_KEY=${{ secrets.EMAIL_API_KEY }}" \
+            --set-env-vars "EMAIL_API_URL=${{ secrets.EMAIL_API_URL }}"
+
+      - name: Create Eventarc Trigger for worker-auth
+        run: |-
+          gcloud eventarc triggers create rosetta-auth-trigger \
+            --location=us-central1 \
+            --destination-run-service=worker-auth \
+            --destination-run-region=us-central1 \
+            --event-filters="type=google.firebase.auth.user.v1.created" \
+            --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }}
+        continue-on-error: true # Fails if trigger already exists, which is ok
