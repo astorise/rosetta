@@ -37,8 +37,11 @@ jobs:
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v2
         with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Deploy to Firebase
+        env:
+          GOOGLE_CLOUD_QUOTA_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
         run: npx firebase-tools deploy --project ${{ secrets.GCP_PROJECT_ID }}
