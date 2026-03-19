@@ -100,36 +100,8 @@ jobs:
             --set-env-vars "EMAIL_API_URL=${{ secrets.EMAIL_API_URL }}" \
             --quiet
 
-      - name: Create Eventarc Trigger for worker-auth
+      - name: Skip unsupported Firebase Auth Eventarc trigger
         run: |-
-          trigger_name="rosetta-auth-trigger"
-          project_id="${{ secrets.GCP_PROJECT_ID }}"
-          location="us-central1"
-          run_service="worker-auth"
-          service_account="${{ secrets.GCP_SERVICE_ACCOUNT }}"
-          event_filter="type=google.firebase.auth.user.v1.created"
-
-          if gcloud eventarc triggers describe "$trigger_name" \
-            --project="$project_id" \
-            --location="$location" \
-            --quiet >/dev/null 2>&1; then
-            echo "Updating existing Eventarc trigger $trigger_name"
-            gcloud eventarc triggers update "$trigger_name" \
-              --project="$project_id" \
-              --location="$location" \
-              --destination-run-service="$run_service" \
-              --destination-run-region="$location" \
-              --event-filters="$event_filter" \
-              --service-account="$service_account" \
-              --quiet
-          else
-            echo "Creating Eventarc trigger $trigger_name"
-            gcloud eventarc triggers create "$trigger_name" \
-              --project="$project_id" \
-              --location="$location" \
-              --destination-run-service="$run_service" \
-              --destination-run-region="$location" \
-              --event-filters="$event_filter" \
-              --service-account="$service_account" \
-              --quiet
-          fi
+          echo "Skipping Eventarc trigger management for worker-auth."
+          echo "Firebase Auth user lifecycle events are not listed as supported Eventarc Standard direct events for Cloud Run services."
+          echo "If worker-auth must react to Firebase Auth user events, migrate this handler to a Cloud Run function/Firebase-supported trigger path instead of Eventarc Standard."
