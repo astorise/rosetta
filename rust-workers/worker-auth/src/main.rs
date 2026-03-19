@@ -1,10 +1,10 @@
-use axum::{routing::post, Router, Extension};
-use cloudevents_sdk_axum::{AxumEvent, CloudEventDecoder};
+use axum::{extract::State, http::StatusCode, routing::post, Router};
+use cloudevents::{Data, Event};
+use log::{error, info};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use log::{info, error};
 use shared_gcp::firestore::FirestoreHelper;
 use std::sync::Arc;
-use reqwest::Client;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -13,7 +13,7 @@ struct AuthEventData {
     uid: String,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 struct UserRole {
     role: String,
 }
@@ -31,6 +31,12 @@ struct EmailClient {
     api_key: String,
     api_url: String,
     admin_email: String,
+}
+
+#[derive(Clone)]
+struct AppState {
+    firestore_helper: Arc<FirestoreHelper>,
+    email_client: Arc<EmailClient>,
 }
 
 impl EmailClient {
@@ -59,37 +65,57 @@ impl EmailClient {
             .await?
             .error_for_status()?;
 
-        info!("Successfully sent email notification to {}", self.admin_email);
+        info!(
+            "Successfully sent email notification to {}",
+            self.admin_email
+        );
         Ok(())
     }
 }
 
+fn parse_auth_event_data(event: &Event) -> Result<AuthEventData, String> {
+    let payload = match event.data() {
+        Some(Data::Json(value)) => value.clone(),
+        Some(Data::String(value)) => {
+            serde_json::from_str(value).map_err(|e| format!("invalid string event payload: {e}"))?
+        }
+        Some(Data::Binary(value)) => serde_json::from_slice(value)
+            .map_err(|e| format!("invalid binary event payload: {e}"))?,
+        None => return Err("missing CloudEvent data".to_string()),
+    };
 
-async fn handle_event(
-    Extension(firestore_helper): Extension<Arc<FirestoreHelper>>,
-    Extension(email_client): Extension<Arc<EmailClient>>,
-    event: AxumEvent
-) {
+    serde_json::from_value(payload).map_err(|e| format!("invalid auth event payload: {e}"))
+}
+
+async fn handle_event(State(state): State<AppState>, event: Event) -> StatusCode {
     info!("Received event: {:?}", event);
-    let event = event.into_event();
 
-    match serde_json::from_value::<AuthEventData>(event.data().unwrap().clone()) {
+    match parse_auth_event_data(&event) {
         Ok(auth_data) => {
             info!("Successfully deserialized auth data: {:?}", auth_data);
-            let user_role = UserRole { role: "reader".to_string() };
-            
-            if let Err(e) = firestore_helper.insert_metadata("user_roles", &auth_data.uid, &user_role).await {
+            let user_role = UserRole {
+                role: "reader".to_string(),
+            };
+
+            if let Err(e) = state
+                .firestore_helper
+                .insert_metadata("user_roles", &auth_data.uid, &user_role)
+                .await
+            {
                 error!("Failed to create user role in Firestore: {}", e);
-                return; // Exit early if Firestore fails
+                return StatusCode::INTERNAL_SERVER_ERROR;
             }
             info!("Successfully created user role in Firestore.");
 
-            if let Err(e) = email_client.send_notification(&auth_data.email).await {
+            if let Err(e) = state.email_client.send_notification(&auth_data.email).await {
                 error!("Failed to send email notification: {}", e);
             }
+
+            StatusCode::OK
         }
         Err(e) => {
             error!("Failed to deserialize auth event data: {}", e);
+            StatusCode::UNPROCESSABLE_ENTITY
         }
     }
 }
@@ -101,15 +127,19 @@ async fn main() {
     let project_id = std::env::var("GCP_PROJECT_ID").expect("GCP_PROJECT_ID not set");
     let firestore_helper = Arc::new(FirestoreHelper::new(&project_id).await.unwrap());
     let email_client = Arc::new(EmailClient::new());
+    let state = AppState {
+        firestore_helper,
+        email_client,
+    };
 
     let app = Router::new()
         .route("/", post(handle_event))
-        .layer(Extension(CloudEventDecoder))
-        .layer(Extension(firestore_helper))
-        .layer(Extension(email_client));
+        .with_state(state);
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
-    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port))
+        .await
+        .unwrap();
 
     info!("Listening on port {}", port);
 
