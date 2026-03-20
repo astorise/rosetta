@@ -1,6 +1,9 @@
-import { storage } from '../lib/firebase.js';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { rawDocsBucketName, rawDocsStorage } from '../lib/firebase.js';
+import { ref, uploadBytesResumable } from 'firebase/storage';
 import { gsap } from 'gsap';
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
+const SUPPORTED_EXTENSIONS = ['.pdf', '.zip', '.jar'];
 
 export class RwUploader extends HTMLElement {
   constructor() {
@@ -18,14 +21,14 @@ export class RwUploader extends HTMLElement {
       <div class="bg-neutral-800 rounded-xl shadow-lg border border-neutral-700 overflow-hidden h-full flex flex-col">
         <div class="p-6 border-b border-neutral-700">
           <h2 class="text-2xl font-bold text-white">Upload Documents</h2>
-          <p class="text-gray-400 text-sm mt-1">Upload raw files for RAG processing.</p>
+          <p class="text-gray-400 text-sm mt-1">Upload PDF, ZIP, or JAR files for async RAG processing.</p>
         </div>
         <div class="p-6 flex-1 flex flex-col items-center justify-center">
           <div id="drop-zone" class="w-full h-full min-h-[300px] border-2 border-dashed border-neutral-600 rounded-xl flex flex-col items-center justify-center text-center cursor-pointer hover:bg-neutral-900/50 transition-colors relative overflow-hidden">
             <svg class="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
             <p class="text-lg font-medium text-gray-300">Drag & Drop files here</p>
-            <p class="text-sm text-gray-500 mt-2">or click to browse</p>
-            <input type="file" id="file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".pdf,.txt,.md,.doc,.docx" />
+            <p class="text-sm text-gray-500 mt-2">PDF, ZIP, or JAR, 50MB max</p>
+            <input type="file" id="file-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".pdf,.zip,.jar" />
             
             <div id="upload-overlay" class="absolute inset-0 bg-neutral-900/90 hidden flex-col items-center justify-center p-8">
               <p id="upload-status" class="text-white font-medium mb-4">Uploading...</p>
@@ -92,7 +95,14 @@ export class RwUploader extends HTMLElement {
   }
 
   handleUpload(file) {
-    if (file.size > 50 * 1024 * 1024) {
+    const lowerName = file.name.toLowerCase();
+
+    if (!SUPPORTED_EXTENSIONS.some((extension) => lowerName.endsWith(extension))) {
+      this.showMessage('Unsupported file type. Use PDF, ZIP, or JAR.', 'error');
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
       this.showMessage('File is larger than 50MB limit.', 'error');
       return;
     }
@@ -108,7 +118,8 @@ export class RwUploader extends HTMLElement {
     overlay.classList.add('flex');
     gsap.set(progressBar, { width: 0 });
     
-    const storageRef = ref(storage, `raw-docs-bucket/${Date.now()}_${file.name}`);
+    const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const storageRef = ref(rawDocsStorage, `${Date.now()}_${safeFileName}`);
     const uploadTask = uploadBytesResumable(storageRef, file);
 
     uploadTask.on('state_changed', 
@@ -129,14 +140,14 @@ export class RwUploader extends HTMLElement {
       () => {
         this.uploading = false;
         gsap.to(progressBar, { width: '100%', duration: 0.3, ease: "power1.out" });
-        statusText.textContent = 'Upload Complete!';
+        statusText.textContent = 'Upload complete. Processing started.';
         
         setTimeout(() => {
           overlay.classList.add('hidden');
           overlay.classList.remove('flex');
           fileInput.disabled = false;
           fileInput.value = '';
-          this.showMessage(`Successfully uploaded ${file.name}`, 'success');
+          this.showMessage(`Uploaded ${file.name} to ${rawDocsBucketName}. Processing runs asynchronously.`, 'success');
         }, 1500);
       }
     );

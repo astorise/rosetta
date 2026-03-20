@@ -2,27 +2,29 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    
-    // If buckets are modeled as top-level folders in the default bucket
-    match /raw-docs-bucket/{allPaths=**} {
-      allow read: if false; // Only backend Rust workers read this
-      allow write: if request.auth != null 
-                   && firestore.get(/databases/(default)/documents/user_roles/$(request.auth.uid)).data.role == 'admin'
-                   && request.resource.size < 50 * 1024 * 1024; // 50MB limit
+    function isSignedIn() {
+      return request.auth != null;
     }
-    match /rag-markdown-bucket/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if false;
+
+    function isAdmin() {
+      return isSignedIn()
+        && firestore.get(/databases/(default)/documents/user_roles/$(request.auth.uid)).data.role == 'admin';
     }
-    
-    // If buckets are literally different Firebase Cloud Storage buckets
+
+    function isRawDocsBucket() {
+      return bucket == 'raw-docs-bucket'
+        || bucket.matches('^[a-z0-9.-]+-raw-docs$');
+    }
+
+    function isMarkdownBucket() {
+      return bucket == 'rag-markdown-bucket'
+        || bucket.matches('^[a-z0-9.-]+-rag-markdown$');
+    }
+
     match /{allPaths=**} {
-      // Storage rules evaluate hierarchically and allow access if ANY match succeeds, but earlier matches don't stop evaluation. 
-      // Actually they allow if any matching rule evaluates to true. We use conditions to ensure only the right bucket is matched here.
-      allow read: if bucket == 'rag-markdown-bucket' && request.auth != null;
-      allow write: if bucket == 'raw-docs-bucket' 
-                   && request.auth != null 
-                   && firestore.get(/databases/(default)/documents/user_roles/$(request.auth.uid)).data.role == 'admin'
+      allow read: if isMarkdownBucket() && isSignedIn();
+      allow write: if isRawDocsBucket()
+                   && isAdmin()
                    && request.resource.size < 50 * 1024 * 1024;
     }
   }
