@@ -2,7 +2,6 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
-import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "demo-api-key",
@@ -15,13 +14,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const functionsRegion = import.meta.env.VITE_FIREBASE_FUNCTIONS_REGION || 'us-central1';
-const rawDocsBucketName =
-  import.meta.env.VITE_FIREBASE_RAW_DOCS_BUCKET ||
-  `${firebaseConfig.projectId}-raw-docs`;
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const functions = getFunctions(app, functionsRegion);
-export const storage = getStorage(app);
-export const rawDocsStorage = getStorage(app, `gs://${rawDocsBucketName}`);
-export { rawDocsBucketName };

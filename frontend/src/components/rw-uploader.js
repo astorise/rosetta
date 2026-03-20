@@ -1,5 +1,5 @@
-import { rawDocsBucketName, rawDocsStorage } from '../lib/firebase.js';
-import { ref, uploadBytesResumable } from 'firebase/storage';
+import { functions } from '../lib/firebase.js';
+import { httpsCallable } from 'firebase/functions';
 import { gsap } from 'gsap';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
@@ -117,18 +117,48 @@ export class RwUploader extends HTMLElement {
     overlay.classList.remove('hidden');
     overlay.classList.add('flex');
     gsap.set(progressBar, { width: 0 });
-    
-    const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const storageRef = ref(rawDocsStorage, `${Date.now()}_${safeFileName}`);
-    const uploadTask = uploadBytesResumable(storageRef, file);
 
-    uploadTask.on('state_changed', 
-      (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        gsap.to(progressBar, { width: `${progress}%`, duration: 0.2, ease: "power1.out" });
-        statusText.textContent = `Uploading ${Math.round(progress)}%`;
-      }, 
-      (error) => {
+    statusText.textContent = 'Preparing upload...';
+    const createRawUploadSession = httpsCallable(functions, 'createRawUploadSession');
+
+    createRawUploadSession({
+      fileName: file.name,
+      contentType: file.type || null,
+      size: file.size,
+    })
+      .then((result) => {
+        const uploadUrl = result.data?.uploadUrl;
+        const contentType = result.data?.contentType || file.type || 'application/octet-stream';
+        const bucketName = result.data?.bucketName || 'raw-docs';
+
+        if (!uploadUrl) {
+          throw new Error('The upload session did not return a URL.');
+        }
+
+        return this.uploadWithSession({
+          uploadUrl,
+          file,
+          contentType,
+          onProgress: (progress) => {
+            gsap.to(progressBar, { width: `${progress}%`, duration: 0.2, ease: "power1.out" });
+            statusText.textContent = `Uploading ${Math.round(progress)}%`;
+          },
+        }).then(() => ({ bucketName }));
+      })
+      .then(({ bucketName }) => {
+        this.uploading = false;
+        gsap.to(progressBar, { width: '100%', duration: 0.3, ease: "power1.out" });
+        statusText.textContent = 'Upload complete. Processing started.';
+
+        setTimeout(() => {
+          overlay.classList.add('hidden');
+          overlay.classList.remove('flex');
+          fileInput.disabled = false;
+          fileInput.value = '';
+          this.showMessage(`Uploaded ${file.name} to ${bucketName}. Processing runs asynchronously.`, 'success');
+        }, 1500);
+      })
+      .catch((error) => {
         this.uploading = false;
         overlay.classList.add('hidden');
         overlay.classList.remove('flex');
@@ -136,21 +166,58 @@ export class RwUploader extends HTMLElement {
         fileInput.value = '';
         console.error("Upload failed:", error);
         this.showMessage(`Upload failed: ${error.message}`, 'error');
-      }, 
-      () => {
-        this.uploading = false;
-        gsap.to(progressBar, { width: '100%', duration: 0.3, ease: "power1.out" });
-        statusText.textContent = 'Upload complete. Processing started.';
-        
-        setTimeout(() => {
-          overlay.classList.add('hidden');
-          overlay.classList.remove('flex');
-          fileInput.disabled = false;
-          fileInput.value = '';
-          this.showMessage(`Uploaded ${file.name} to ${rawDocsBucketName}. Processing runs asynchronously.`, 'success');
-        }, 1500);
-      }
-    );
+      });
+  }
+
+  uploadWithSession({ uploadUrl, file, contentType, onProgress }) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', uploadUrl);
+      xhr.setRequestHeader('Content-Type', contentType);
+
+      xhr.upload.addEventListener('progress', (event) => {
+        if (!event.lengthComputable) {
+          return;
+        }
+
+        const progress = (event.loaded / event.total) * 100;
+        onProgress(progress);
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+          return;
+        }
+
+        reject(new Error(this.parseUploadError(xhr)));
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Network error while uploading the file.'));
+      });
+
+      xhr.addEventListener('abort', () => {
+        reject(new Error('The upload was interrupted.'));
+      });
+
+      xhr.send(file);
+    });
+  }
+
+  parseUploadError(xhr) {
+    const fallbackMessage = `Cloud Storage upload failed with status ${xhr.status}.`;
+
+    if (!xhr.responseText) {
+      return fallbackMessage;
+    }
+
+    try {
+      const parsed = JSON.parse(xhr.responseText);
+      return parsed.error?.message || fallbackMessage;
+    } catch (_error) {
+      return xhr.responseText || fallbackMessage;
+    }
   }
 
   showMessage(msg, type) {

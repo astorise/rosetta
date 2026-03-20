@@ -11,6 +11,8 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 const adminAuth = admin.auth();
 const cloudRunServiceUrl = defineString('CLOUD_RUN_SERVICE_URL');
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+const SUPPORTED_UPLOAD_EXTENSIONS = new Set(['.pdf', '.zip', '.jar']);
 
 function getRoleFromSnapshot(snapshot) {
   if (!snapshot.exists) {
@@ -32,6 +34,102 @@ function serializeAccount(userRecord, role) {
     lastSignInTime: userRecord.metadata.lastSignInTime ?? null,
     providerIds: userRecord.providerData.map((provider) => provider.providerId),
   };
+}
+
+function getProjectId() {
+  return process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT || admin.app().options.projectId || '';
+}
+
+function getRawDocsBucketName() {
+  return process.env.RAW_DOCS_BUCKET || `${getProjectId()}-raw-docs`;
+}
+
+function getFileExtension(fileName) {
+  const normalizedName = typeof fileName === 'string' ? fileName.trim().toLowerCase() : '';
+  const match = normalizedName.match(/\.[a-z0-9]+$/);
+  return match ? match[0] : '';
+}
+
+function sanitizeUploadFileName(fileName) {
+  const baseName = String(fileName ?? '')
+    .split(/[\\/]/)
+    .pop()
+    ?.trim() || 'upload.bin';
+
+  const sanitizedName = baseName.replace(/[^a-zA-Z0-9._-]/g, '_');
+  return `${Date.now()}_${sanitizedName}`;
+}
+
+function normalizeUploadContentType(contentType, extension) {
+  const normalizedType = typeof contentType === 'string' ? contentType.trim() : '';
+
+  if (normalizedType) {
+    return normalizedType;
+  }
+
+  switch (extension) {
+    case '.pdf':
+      return 'application/pdf';
+    case '.zip':
+      return 'application/zip';
+    case '.jar':
+      return 'application/java-archive';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
+async function createResumableUploadSession({
+  bucketName,
+  objectName,
+  contentType,
+  size,
+  uploadedBy,
+}) {
+  const authClient = new GoogleAuth({
+    scopes: ['https://www.googleapis.com/auth/devstorage.read_write'],
+  });
+  const accessToken = await authClient.getAccessToken();
+
+  if (!accessToken) {
+    throw new Error('Unable to acquire a Google Cloud access token.');
+  }
+
+  const endpoint = new URL(`https://storage.googleapis.com/upload/storage/v1/b/${bucketName}/o`);
+  endpoint.searchParams.set('uploadType', 'resumable');
+  endpoint.searchParams.set('name', objectName);
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json; charset=UTF-8',
+      'X-Upload-Content-Type': contentType,
+      'X-Upload-Content-Length': String(size),
+    },
+    body: JSON.stringify({
+      name: objectName,
+      contentType,
+      metadata: {
+        uploadedBy,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const responseBody = await response.text();
+    throw new Error(
+      `Failed to create upload session (${response.status}): ${responseBody || 'empty response'}`
+    );
+  }
+
+  const sessionUri = response.headers.get('location');
+
+  if (!sessionUri) {
+    throw new Error('Cloud Storage did not return a resumable upload URL.');
+  }
+
+  return sessionUri;
 }
 
 async function ensureAdmin(context) {
@@ -63,6 +161,69 @@ async function listAllUsers() {
 
   return users;
 }
+
+exports.createRawUploadSession = https.onCall(async (data, context) => {
+  const requesterUid = await ensureAdmin(context);
+  const fileName = typeof data?.fileName === 'string' ? data.fileName.trim() : '';
+  const size = Number(data?.size);
+  const extension = getFileExtension(fileName);
+
+  if (!fileName) {
+    throw new https.HttpsError('invalid-argument', 'A file name is required.');
+  }
+
+  if (!SUPPORTED_UPLOAD_EXTENSIONS.has(extension)) {
+    throw new https.HttpsError(
+      'invalid-argument',
+      'Only PDF, ZIP, and JAR uploads are supported.'
+    );
+  }
+
+  if (!Number.isFinite(size) || size <= 0) {
+    throw new https.HttpsError('invalid-argument', 'A valid file size is required.');
+  }
+
+  if (size > MAX_UPLOAD_BYTES) {
+    throw new https.HttpsError(
+      'failed-precondition',
+      'Files larger than 50MB are not allowed.'
+    );
+  }
+
+  const objectName = sanitizeUploadFileName(fileName);
+  const contentType = normalizeUploadContentType(data?.contentType, extension);
+  const bucketName = getRawDocsBucketName();
+
+  try {
+    const uploadUrl = await createResumableUploadSession({
+      bucketName,
+      objectName,
+      contentType,
+      size,
+      uploadedBy: requesterUid,
+    });
+
+    logger.info('Created raw upload session.', {
+      bucketName,
+      objectName,
+      requesterUid,
+    });
+
+    return {
+      bucketName,
+      objectName,
+      contentType,
+      uploadUrl,
+    };
+  } catch (error) {
+    logger.error('Failed to create raw upload session.', error);
+    throw new https.HttpsError(
+      'internal',
+      'Failed to create an upload session.',
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+});
 
 exports.triggerCloudRunOnUserCreate = auth.user().onCreate(async (user) => {
   const serviceUrl = cloudRunServiceUrl.value();
