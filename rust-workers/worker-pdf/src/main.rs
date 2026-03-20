@@ -346,8 +346,8 @@ impl GeminiClient {
             .await
             .map_err(|e| format!("Failed to obtain access token: {}", e))?;
         let url = format!(
-            "https://aiplatform.googleapis.com/v1/projects/{}/locations/{}/publishers/google/models/{}:generateContent",
-            self.project_id, self.location, self.model
+            "https://{}-aiplatform.googleapis.com/v1/projects/{}/locations/{}/publishers/google/models/{}:generateContent",
+            self.location, self.project_id, self.location, self.model
         );
         let file_uri = format!("gs://{}/{}", bucket, object_name);
         let request_body = json!({
