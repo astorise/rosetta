@@ -7,6 +7,8 @@ edition = "2021"
 shared-gcp = { path = "../shared-gcp" }
 tokio = { version = "1.37", features = ["full"] }
 axum = "0.7"
+chrono = { version = "0.4", features = ["clock"] }
+google-cloud-auth = "1.7.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tracing = "0.1"

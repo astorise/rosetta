@@ -67,6 +67,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Run Rust tests
+        run: cargo test --workspace
+        working-directory: ./rust-workers
+
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v3
         with:
@@ -107,6 +111,57 @@ jobs:
       - name: Get Cloud Run service URL
         id: get_service_url
         run: echo "url=$(gcloud run services describe worker-auth --platform managed --region us-central1 --format 'value(status.url)')" >> $GITHUB_OUTPUT
+
+      - name: Build and Push document workers
+        run: |-
+          for worker in worker-pdf worker-html worker-jar; do
+            case "$worker" in
+              worker-pdf) dockerfile="Dockerfile.pdf" ;;
+              worker-html) dockerfile="Dockerfile.html" ;;
+              worker-jar) dockerfile="Dockerfile.jar" ;;
+            esac
+
+            docker build -t us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/rag-workers/${worker}:latest -f "${dockerfile}" .
+            docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/rag-workers/${worker}:latest
+          done
+        working-directory: ./rust-workers
+
+      - name: Deploy document workers to Cloud Run
+        run: |-
+          gcloud run deploy worker-pdf \
+            --image us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/rag-workers/worker-pdf:latest \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --region us-central1 \
+            --platform managed \
+            --no-allow-unauthenticated \
+            --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }} \
+            --set-env-vars "PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" \
+            --set-env-vars "MD_BUCKET=${{ secrets.GCP_PROJECT_ID }}-rag-markdown" \
+            --set-env-vars "VERTEX_LOCATION=us-central1" \
+            --set-env-vars "GEMINI_MODEL=gemini-2.5-flash" \
+            --quiet
+
+          gcloud run deploy worker-html \
+            --image us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/rag-workers/worker-html:latest \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --region us-central1 \
+            --platform managed \
+            --no-allow-unauthenticated \
+            --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }} \
+            --set-env-vars "PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" \
+            --set-env-vars "MD_BUCKET=${{ secrets.GCP_PROJECT_ID }}-rag-markdown" \
+            --quiet
+
+          gcloud run deploy worker-jar \
+            --image us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/rag-workers/worker-jar:latest \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --region us-central1 \
+            --platform managed \
+            --no-allow-unauthenticated \
+            --service-account=${{ secrets.GCP_SERVICE_ACCOUNT }} \
+            --set-env-vars "PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" \
+            --set-env-vars "MD_BUCKET=${{ secrets.GCP_PROJECT_ID }}-rag-markdown" \
+            --quiet
 
   deploy-functions:
     needs: deploy-rust-workers

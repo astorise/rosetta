@@ -22,8 +22,8 @@ impl FirestoreHelper {
     {
         self.db
             .fluent()
-            .insert()
-            .into(collection)
+            .update()
+            .in_col(collection)
             .document_id(document_id)
             .object(data)
             .execute::<()>()
