@@ -128,6 +128,8 @@ jobs:
 
       - name: Deploy document workers to Cloud Run
         run: |-
+          # The service account used here MUST have the `roles/storage.objectAdmin` role
+          # to allow the workers to write to the LanceDB dataset in the GCS bucket.
           gcloud run deploy worker-pdf \
             --image us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/rag-workers/worker-pdf:latest \
             --project=${{ secrets.GCP_PROJECT_ID }} \

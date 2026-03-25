@@ -13,3 +13,7 @@ google-cloud-storage = "*"
 firestore = "0.48.0"
 serde_yaml = "0.9"
 bytes = "1.0"
+lancedb = "*"
+arrow-array = "*"
+arrow-schema = "*"
+reqwest = { version = "*", features = ["json"] }
