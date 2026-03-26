@@ -1,5 +1,7 @@
-## ADDED Requirements
+## Purpose
 
+This specification defines the requirements for a dual-routing system for processing documents. It details how different worker services (`worker-pdf`, `worker-html`, `worker-jar`) should handle teacher-model outputs, persist vectorized markdown to a vector database (LanceDB), and selectively contribute high-value instructional pairs to a reinforcement learning (RL) dataset.
+## Requirements
 ### Requirement: Document workers consume a structured dual-routing teacher payload
 
 The system MUST require `worker-pdf`, `worker-html`, and `worker-jar` to consume teacher-model output as a structured JSON object containing `rag_markdown`, `pedagogical_value`, and an optional `rl_pair`.
@@ -31,3 +33,18 @@ The system MUST append RL fine-tuning examples to `gs://<PROJECT_ID>-rag-markdow
 #### Scenario: A processed document is not eligible for RL extraction
 - **WHEN** the teacher payload omits `rl_pair` or reports `pedagogical_value` less than or equal to 7
 - **THEN** the worker does not append a new line to `rl_dataset.jsonl`
+
+### Requirement: Workers log raw teacher model output in debug mode
+
+The system MUST enable `worker-pdf`, `worker-html`, and `worker-jar` to log the raw, unmodified string output from the teacher model when a `DEBUG_LLM_OUTPUT` environment variable is set to `true`.
+
+#### Scenario: A worker runs with debug mode enabled
+- **GIVEN** `DEBUG_LLM_OUTPUT` is `true`
+- **WHEN** the worker receives a response from the teacher model
+- **THEN** it prints the raw string response to standard output before JSON parsing
+
+#### Scenario: A worker runs with debug mode disabled
+- **GIVEN** `DEBUG_LLM_OUTPUT` is not `true`
+- **WHEN** the worker receives a response from the teacher model
+- **THEN** it does not print the raw string response
+

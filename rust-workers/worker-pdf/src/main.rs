@@ -486,17 +486,43 @@ impl GeminiClient {
 
 
 
-        serde_json::from_str::<DocumentAnalysis>(strip_code_fences(&candidate_text)).map_err(|e| {
+                if std::env::var("DEBUG_LLM_OUTPUT").is_ok() {
 
-            format!(
 
-                "Failed to parse Gemini JSON response: {}. Raw response: {}",
 
-                e, candidate_text
+                    println!("RAW LLM OUTPUT:\n{}", &candidate_text);
 
-            )
 
-        })
+
+                }
+
+
+
+        
+
+
+
+                serde_json::from_str::<DocumentAnalysis>(strip_code_fences(&candidate_text)).map_err(|e| {
+
+
+
+                    format!(
+
+
+
+                        "Failed to parse Gemini JSON response: {}. Raw response: {}",
+
+
+
+                        e, candidate_text
+
+
+
+                    )
+
+
+
+                })
 
     }
 
