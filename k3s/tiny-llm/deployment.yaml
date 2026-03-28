@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tiny-llm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tiny-llm
+  template:
+    metadata:
+      labels:
+        app: tiny-llm
+    spec:
+      containers:
+      - name: tiny-llm
+        image: placeholder-image:latest
+        ports:
+        - containerPort: 8000
+        volumeMounts:
+        - name: lancedb-storage
+          mountPath: /data/vectordb
+      volumes:
+      - name: lancedb-storage
+        persistentVolumeClaim:
+          claimName: lancedb-pvc

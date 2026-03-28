@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: small-llm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: small-llm
+  template:
+    metadata:
+      labels:
+        app: small-llm
+    spec:
+      containers:
+      - name: small-llm
+        image: vllm/vllm-openai:latest
+        args: ["--model", "/models/custom-model"]
+        ports:
+        - containerPort: 8000
+        volumeMounts:
+        - name: models-storage
+          mountPath: /models
+      volumes:
+      - name: models-storage
+        persistentVolumeClaim:
+          claimName: models-pvc
