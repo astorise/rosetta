@@ -1,0 +1,8 @@
+torch
+transformers
+trl
+peft
+bitsandbytes
+datasets
+google-cloud-storage
+accelerate
