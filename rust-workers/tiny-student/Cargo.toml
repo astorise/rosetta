@@ -1,0 +1,15 @@
+[package]
+name = "tiny-student"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+candle-core = "*"
+candle-transformers = "*"
+hf-hub = "*"
+tokenizers = "*"
+lancedb = "*"
+axum = "*"
+tokio = { version = "*", features = ["full"] }
+serde = { version = "*", features = ["derive"] }
+serde_json = "*"

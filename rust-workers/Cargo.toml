@@ -5,5 +5,5 @@ members = [
     "worker-jar",
     "shared-gcp",
     "worker-auth"
-]
+, "tiny-student"]
 resolver = "2"
