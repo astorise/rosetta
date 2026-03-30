@@ -53,7 +53,7 @@ jobs:
       - name: Deploy to Firebase
         env:
           GOOGLE_CLOUD_QUOTA_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
-        run: npx firebase-tools deploy --project ${{ secrets.GCP_PROJECT_ID }} --except functions
+        run: npx firebase-tools deploy --project ${{ secrets.GCP_PROJECT_ID }} --except functions --debug
 
   deploy-rust-workers:
     needs: deploy
@@ -201,4 +201,4 @@ jobs:
       - name: Deploy to Firebase Functions
         env:
           GOOGLE_CLOUD_QUOTA_PROJECT: ${{ secrets.GCP_PROJECT_ID }}
-        run: npx firebase-tools deploy --only functions --project ${{ secrets.GCP_PROJECT_ID }} --force
+        run: npx firebase-tools deploy --only functions --project ${{ secrets.GCP_PROJECT_ID }} --force --debug
